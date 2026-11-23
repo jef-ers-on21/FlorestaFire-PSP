@@ -578,47 +578,149 @@ void update_game(float dt) {
 // ============================================================
 // Render (esqueleto otimizado)
 // ============================================================
+// Vertex simples com cor (sem textura)
+typedef struct {
+    unsigned int color;
+    float x, y, z;
+} VertexColor;
+
+// Desenha um quad no chão (terreno)
+void draw_ground(void) {
+    VertexColor ground[4] = {
+        {0xFF2E5A2E, -80.0f, 0.0f, -80.0f},
+        {0xFF2E5A2E,  80.0f, 0.0f, -80.0f},
+        {0xFF2E5A2E, -80.0f, 0.0f,  80.0f},
+        {0xFF2E5A2E,  80.0f, 0.0f,  80.0f}
+    };
+
+    sceGuDisable(GU_TEXTURE_2D);
+    sceGuDisable(GU_LIGHTING);
+    sceGumMatrixMode(GU_MODEL);
+    sceGumLoadIdentity();
+
+    sceGuDrawArray(GU_TRIANGLE_STRIP, GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_3D, 4, 0, ground);
+}
+
+// Desenha um "personagem" simples (caixa colorida)
+void draw_player_box(Player *p, unsigned int color) {
+    if (!p->is_alive) return;
+
+    float s = 0.7f; // tamanho
+    float h = 1.6f; // altura
+
+    VertexColor box[36]; // 6 faces * 2 triangulos * 3 vertices (simplificado com strips depois)
+    // Usamos 6 quads (24 vertices) com triangle strips seria melhor, mas para simplicidade:
+
+    // Frente
+    VertexColor front[4] = {
+        {color, p->pos.x - s, p->pos.y,     p->pos.z + s},
+        {color, p->pos.x + s, p->pos.y,     p->pos.z + s},
+        {color, p->pos.x - s, p->pos.y + h, p->pos.z + s},
+        {color, p->pos.x + s, p->pos.y + h, p->pos.z + s}
+    };
+    // Trás
+    VertexColor back[4] = {
+        {color, p->pos.x + s, p->pos.y,     p->pos.z - s},
+        {color, p->pos.x - s, p->pos.y,     p->pos.z - s},
+        {color, p->pos.x + s, p->pos.y + h, p->pos.z - s},
+        {color, p->pos.x - s, p->pos.y + h, p->pos.z - s}
+    };
+    // Esquerda
+    VertexColor left[4] = {
+        {color, p->pos.x - s, p->pos.y,     p->pos.z - s},
+        {color, p->pos.x - s, p->pos.y,     p->pos.z + s},
+        {color, p->pos.x - s, p->pos.y + h, p->pos.z - s},
+        {color, p->pos.x - s, p->pos.y + h, p->pos.z + s}
+    };
+    // Direita
+    VertexColor right[4] = {
+        {color, p->pos.x + s, p->pos.y,     p->pos.z + s},
+        {color, p->pos.x + s, p->pos.y,     p->pos.z - s},
+        {color, p->pos.x + s, p->pos.y + h, p->pos.z + s},
+        {color, p->pos.x + s, p->pos.y + h, p->pos.z - s}
+    };
+    // Topo
+    VertexColor top[4] = {
+        {color, p->pos.x - s, p->pos.y + h, p->pos.z + s},
+        {color, p->pos.x + s, p->pos.y + h, p->pos.z + s},
+        {color, p->pos.x - s, p->pos.y + h, p->pos.z - s},
+        {color, p->pos.x + s, p->pos.y + h, p->pos.z - s}
+    };
+
+    sceGuDisable(GU_TEXTURE_2D);
+    sceGuDisable(GU_LIGHTING);
+
+    sceGumMatrixMode(GU_MODEL);
+    sceGumLoadIdentity();
+
+    sceGuDrawArray(GU_TRIANGLE_STRIP, GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_3D, 4, 0, front);
+    sceGuDrawArray(GU_TRIANGLE_STRIP, GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_3D, 4, 0, back);
+    sceGuDrawArray(GU_TRIANGLE_STRIP, GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_3D, 4, 0, left);
+    sceGuDrawArray(GU_TRIANGLE_STRIP, GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_3D, 4, 0, right);
+    sceGuDrawArray(GU_TRIANGLE_STRIP, GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_3D, 4, 0, top);
+}
+
 void render_game(void) {
     sceGuStart(GU_DIRECT, g_list);
 
     // Clear
-    sceGuClearColor(0xFF1A2F1A);        // verde floresta escuro
+    sceGuClearColor(0xFF0D1F0D);        // verde floresta bem escuro (céu)
     sceGuClearDepth(0);
     sceGuClear(GU_COLOR_BUFFER_BIT | GU_DEPTH_BUFFER_BIT);
 
-    // Câmera simples (terceira pessoa atrás do jogador)
+    // Câmera terceira pessoa
     Player *cam = &g_game.players[g_game.local_player_id];
 
     sceGumMatrixMode(GU_PROJECTION);
     sceGumLoadIdentity();
-    sceGumPerspective(60.0f, 16.0f/9.0f, 0.8f, 300.0f);
+    sceGumPerspective(55.0f, 16.0f/9.0f, 0.5f, 250.0f);
 
     sceGumMatrixMode(GU_VIEW);
     sceGumLoadIdentity();
 
-    // Câmera atrás e um pouco acima
     ScePspFVector3 eye = {
-        cam->pos.x - sinf(cam->rot.y) * 8.0f,
-        cam->pos.y + 4.5f,
-        cam->pos.z - cosf(cam->rot.y) * 8.0f
+        cam->pos.x - sinf(cam->rot.y) * 7.5f,
+        cam->pos.y + 3.8f,
+        cam->pos.z - cosf(cam->rot.y) * 7.5f
     };
     ScePspFVector3 center = {
         cam->pos.x,
-        cam->pos.y + 1.5f,
+        cam->pos.y + 1.2f,
         cam->pos.z
     };
     ScePspFVector3 up = { 0.0f, 1.0f, 0.0f };
     sceGumLookAt(&eye, &center, &up);
 
-    sceGumMatrixMode(GU_MODEL);
-    sceGumLoadIdentity();
+    // === DESENHO ===
+    draw_ground();
 
-    // TODO: aqui você desenha o terreno, árvores (billboards),
-    // jogadores (modelos low-poly), construções e balas.
-    // Por enquanto só limpa a tela com cor de floresta.
+    // Jogador local (azul)
+    draw_player_box(&g_game.players[0], 0xFF3366FF);
 
-    // Exemplo mínimo de debug: desenhar um quad no chão (placeholder)
-    // (em produção você usa vertex arrays + display lists)
+    // Bots (cores diferentes)
+    unsigned int bot_colors[3] = {0xFFFF4444, 0xFF44FF44, 0xFFFFFF44};
+    for (int i = 1; i < MAX_PLAYERS; i++) {
+        draw_player_box(&g_game.players[i], bot_colors[i-1]);
+    }
+
+    // Construções (cinza)
+    for (int i = 0; i < MAX_BUILDINGS; i++) {
+        if (!g_game.buildings[i].active) continue;
+        Player fake;
+        fake.pos = g_game.buildings[i].pos;
+        fake.is_alive = 1;
+        // Desenha construção um pouco mais baixa e larga
+        float s = 1.2f;
+        float h = 2.2f;
+        unsigned int col = 0xFF888888;
+        VertexColor wall[4] = {
+            {col, fake.pos.x - s, fake.pos.y,     fake.pos.z + 0.3f},
+            {col, fake.pos.x + s, fake.pos.y,     fake.pos.z + 0.3f},
+            {col, fake.pos.x - s, fake.pos.y + h, fake.pos.z + 0.3f},
+            {col, fake.pos.x + s, fake.pos.y + h, fake.pos.z + 0.3f}
+        };
+        sceGuDrawArray(GU_TRIANGLE_STRIP, GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_3D, 4, 0, wall);
+    }
 
     sceGuFinish();
     sceGuSync(0, 0);
