@@ -641,4 +641,135 @@ void draw_player_box(Player *p, unsigned int color) {
     };
     // Topo
     VertexColor top[4] = {
-        {color, p->pos.x -
+        {color, p->pos.x - s, p->pos.y + h, p->pos.z + s},
+        {color, p->pos.x + s, p->pos.y + h, p->pos.z + s},
+        {color, p->pos.x - s, p->pos.y + h, p->pos.z - s},
+        {color, p->pos.x + s, p->pos.y + h, p->pos.z - s}
+    };
+
+    sceGuDisable(GU_TEXTURE_2D);
+    sceGuDisable(GU_LIGHTING);
+
+    sceGumMatrixMode(GU_MODEL);
+    sceGumLoadIdentity();
+
+    sceGuDrawArray(GU_TRIANGLE_STRIP, GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_3D, 4, 0, front);
+    sceGuDrawArray(GU_TRIANGLE_STRIP, GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_3D, 4, 0, back);
+    sceGuDrawArray(GU_TRIANGLE_STRIP, GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_3D, 4, 0, left);
+    sceGuDrawArray(GU_TRIANGLE_STRIP, GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_3D, 4, 0, right);
+    sceGuDrawArray(GU_TRIANGLE_STRIP, GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_3D, 4, 0, top);
+}
+
+void render_game(void) {
+    sceGuStart(GU_DIRECT, g_list);
+
+    // Clear
+    sceGuClearColor(0xFF0D1F0D);        // verde floresta bem escuro (céu)
+    sceGuClearDepth(0);
+    sceGuClear(GU_COLOR_BUFFER_BIT | GU_DEPTH_BUFFER_BIT);
+
+    // Câmera terceira pessoa
+    Player *cam = &g_game.players[g_game.local_player_id];
+
+    sceGumMatrixMode(GU_PROJECTION);
+    sceGumLoadIdentity();
+    sceGumPerspective(55.0f, 16.0f/9.0f, 0.5f, 250.0f);
+
+    sceGumMatrixMode(GU_VIEW);
+    sceGumLoadIdentity();
+
+    ScePspFVector3 eye = {
+        cam->pos.x - sinf(cam->rot.y) * 7.5f,
+        cam->pos.y + 3.8f,
+        cam->pos.z - cosf(cam->rot.y) * 7.5f
+    };
+    ScePspFVector3 center = {
+        cam->pos.x,
+        cam->pos.y + 1.2f,
+        cam->pos.z
+    };
+    ScePspFVector3 up = { 0.0f, 1.0f, 0.0f };
+    sceGumLookAt(&eye, &center, &up);
+
+    // === DESENHO ===
+    draw_ground();
+
+    // Jogador local (azul)
+    draw_player_box(&g_game.players[0], 0xFF3366FF);
+
+    // Bots (cores diferentes)
+    unsigned int bot_colors[3] = {0xFFFF4444, 0xFF44FF44, 0xFFFFFF44};
+    for (int i = 1; i < MAX_PLAYERS; i++) {
+        draw_player_box(&g_game.players[i], bot_colors[i-1]);
+    }
+
+    // Construções (cinza)
+    for (int i = 0; i < MAX_BUILDINGS; i++) {
+        if (!g_game.buildings[i].active) continue;
+        Player fake;
+        fake.pos = g_game.buildings[i].pos;
+        fake.is_alive = 1;
+        // Desenha construção um pouco mais baixa e larga
+        float s = 1.2f;
+        float h = 2.2f;
+        unsigned int col = 0xFF888888;
+        VertexColor wall[4] = {
+            {col, fake.pos.x - s, fake.pos.y,     fake.pos.z + 0.3f},
+            {col, fake.pos.x + s, fake.pos.y,     fake.pos.z + 0.3f},
+            {col, fake.pos.x - s, fake.pos.y + h, fake.pos.z + 0.3f},
+            {col, fake.pos.x + s, fake.pos.y + h, fake.pos.z + 0.3f}
+        };
+        sceGuDrawArray(GU_TRIANGLE_STRIP, GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_3D, 4, 0, wall);
+    }
+
+    sceGuFinish();
+    sceGuSync(0, 0);
+    sceDisplayWaitVblankStart();
+    sceGuSwapBuffers();
+}
+
+// ============================================================
+// main
+// ============================================================
+int main(int argc, char *argv[]) {
+    setup_callbacks();
+    scePowerSetClockFrequency(333, 333, 166);   // máximo estável
+
+    // Buffers de frame (alinhados)
+    fbp0 = (void*)(0x0);                       // VRAM offset 0
+    fbp1 = (void*)(0x88000);                   // segundo buffer
+    zbp  = (void*)(0x110000);                  // depth
+
+    init_gu();
+    sceCtrlSetSamplingCycle(0);
+    sceCtrlSetSamplingMode(PSP_CTRL_MODE_ANALOG);
+
+    init_game();
+
+    u64 last_tick;
+    sceRtcGetCurrentTick(&last_tick);
+    float tick_frequency = (float)sceRtcGetTickResolution();
+
+    while (1) {
+        u64 now;
+        sceRtcGetCurrentTick(&now);
+        float dt = (now - last_tick) / tick_frequency;
+        last_tick = now;
+
+        // Limitar dt para evitar saltos grandes
+        if (dt > 0.1f) dt = 0.1f;
+
+        update_game(dt);
+        render_game();
+
+        // Saída
+        if (g_pad.Buttons & PSP_CTRL_START) {
+            // Em produção: pausar ou voltar ao menu
+            // Por enquanto deixa rodando
+        }
+    }
+
+    end_gu();
+    sceKernelExitGame();
+    return 0;
+}
