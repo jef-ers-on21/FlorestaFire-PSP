@@ -1,49 +1,43 @@
-name: FlorestaFire
+name: Build Floresta Fire PSP
 
-platform: psp
-target: EBOOT.PBP
-version: "0.1.0"
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
 
-description: >
-  Jogo multiplayer estilo Free Fire para PSP / PPSSPP.
-  Tiro, construção, mapa florestal e 4 jogadores (com bots).
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: pspdev/pspdev:latest
 
-sources:
-  - main.c
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-includes:
-  - .
+      - name: Build
+        run: |
+          make clean || true
+          make
 
-libs:
-  - pspgu
-  - pspgum
-  - pspge
-  - pspdisplay
-  - pspctrl
-  - psppower
-  - psprtc
-  - m
-  - c
+      - name: Verificar arquivos gerados
+        run: |
+          ls -la
+          test -f EBOOT.PBP && echo "EBOOT.PBP gerado com sucesso" || echo "EBOOT.PBP não encontrado"
 
-cflags:
-  - -O2
-  - -G0
-  - -Wall
-  - -D_PSP_FW_VERSION=150
+      - name: Upload EBOOT.PBP
+        uses: actions/upload-artifact@v4
+        with:
+          name: FlorestaFire-EBOOT
+          path: EBOOT.PBP
+          if-no-files-found: warn
 
-pbp:
-  title: "Floresta Fire"
-  icon0: NULL
-  pic1: NULL
-
-build:
-  compiler: psp-gcc
-  output: EBOOT.PBP
-  makefile: Makefile
-
-notes: >
-  Este projeto é homebrew para PSP.
-  O resultado final é o arquivo EBOOT.PBP.
-  Coloque o EBOOT.PBP na pasta PSP/GAME/FlorestaFire/ para rodar no PPSSPP.
-  Não é um ISO comercial, é homebrew nativo.
-  
+      - name: Upload ELF
+        uses: actions/upload-artifact@v4
+        with:
+          name: FlorestaFire-ELF
+          path: FlorestaFire.elf
+          if-no-files-found: warn
+          
