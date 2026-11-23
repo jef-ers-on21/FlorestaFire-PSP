@@ -1,22 +1,4 @@
-name: Build PSP
-on: [push]
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install PSPSDK
-        run: |
-          # (aqui você coloca a instalação do psptoolchain)
-          echo "Instale o PSPSDK via action ou container"
-      - name: Build
-        run: make
-      - name: Upload EBOOT
-        uses: actions/upload-artifact@v4
-        with:
-          name: FlorestaFire
-          path: EBOOT.PBP
-          # ============================================================
+ # ============================================================
 # Floresta Fire - build.yml
 # Configuração de build para PSPSDK / PPSSPP
 # ============================================================
@@ -166,3 +148,21 @@ build_steps:
 # - Bots atualizados de forma desincronizada (0.35s+)
 # - Máximo 32 balas e 64 construções
 # - Sem texturas ainda (próximo passo: atlas 128x128 swizzled)
+name: Build PSP
+on: [push]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install PSPSDK
+        run: |
+          # (aqui você coloca a instalação do psptoolchain)
+          echo "Instale o PSPSDK via action ou container"
+      - name: Build
+        run: make
+      - name: Upload EBOOT
+        uses: actions/upload-artifact@v4
+        with:
+          name: FlorestaFire
+          path: EBOOT.PBP
